@@ -1,16 +1,17 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Redirect } from "expo-router";
+import { ActivityIndicator, View } from "react-native";
+import { useAuth } from "../src/auth/AuthContext";
 
 export default function Index() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>RecAI</Text>
-      <Text style={styles.subtitle}>Setup complete ✅</Text>
-    </View>
-  );
-}
+  const { token, isLoading } = useAuth();
 
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 32, fontWeight: "bold" },
-  subtitle: { fontSize: 16, color: "#666", marginTop: 8 },
-});
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  return <Redirect href={token ? "/dashboard" : "/login"} />;
+}
