@@ -1,7 +1,7 @@
-import * as SecureStore from "expo-secure-store";
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
-
-const TOKEN_KEY = "recai_token";
+import { api, setUnauthorizedHandler } from "../api/client";
+import { AuthResponse } from "../types";
+import { tokenStorage } from "./tokenStorage";
 
 interface AuthState {
   token: string | null;
@@ -17,30 +17,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore any saved session when the app starts.
+  // Restore a saved session on startup.
   useEffect(() => {
     (async () => {
-      const stored = await SecureStore.getItemAsync(TOKEN_KEY);
+      const stored = await tokenStorage.get();
       setToken(stored);
       setIsLoading(false);
     })();
   }, []);
 
-  // PHASE 7: mock. PHASE 8 will replace the body with a real API call.
-  async function signIn(_email: string, _password: string) {
-    const fakeToken = "mock-jwt-token";
-    await SecureStore.setItemAsync(TOKEN_KEY, fakeToken);
-    setToken(fakeToken);
+  // If any request returns 401, the interceptor calls this to drop the session.
+  useEffect(() => {
+    setUnauthorizedHandler(() => setToken(null));
+  }, []);
+
+  async function signIn(email: string, password: string) {
+    const { data } = await api.post<AuthResponse>("/auth/login", { email, password });
+    await tokenStorage.set(data.token);
+    setToken(data.token);
   }
 
-  async function signUp(_name: string, _email: string, _password: string) {
-    const fakeToken = "mock-jwt-token";
-    await SecureStore.setItemAsync(TOKEN_KEY, fakeToken);
-    setToken(fakeToken);
+  async function signUp(name: string, email: string, password: string) {
+    const { data } = await api.post<AuthResponse>("/auth/register", { name, email, password });
+    await tokenStorage.set(data.token);
+    setToken(data.token);
   }
 
   async function signOut() {
-    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await tokenStorage.remove();
     setToken(null);
   }
 
