@@ -5,12 +5,13 @@ interface Props extends TextInputProps {
   error?: string;
 }
 
-export default function AppInput({ label, error, ...rest }: Props) {
+// firma: extrae 'style' del resto
+export default function AppInput({ label, error, style, ...rest }: Props) {
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        style={[styles.input, error ? styles.inputError : null]}
+        style={[styles.input, error ? styles.inputError : null, style]}  // ← añade 'style'
         placeholderTextColor="#9ca3af"
         {...rest}
       />
