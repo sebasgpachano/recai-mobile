@@ -6,8 +6,17 @@ export async function getDashboard(): Promise<DashboardStats> {
   return data;
 }
 
-export async function getRecommendations(): Promise<Recommendation[]> {
-  const { data } = await api.get<Recommendation[]>("/recommendations");
+export interface RecommendationFilters {
+  status?: RecommendationStatus;
+  priority?: Priority;
+  search?: string;
+}
+
+export async function getRecommendations(
+  filters: RecommendationFilters = {}
+): Promise<Recommendation[]> {
+  // axios omits undefined params, so only the active filters travel.
+  const { data } = await api.get<Recommendation[]>("/recommendations", { params: filters });
   return data;
 }
 

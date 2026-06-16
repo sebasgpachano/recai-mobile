@@ -1,9 +1,11 @@
 import { Link, useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { getRecommendations } from "../../../src/api/recommendations";
+import { useCallback, useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { getRecommendations, RecommendationFilters } from "../../../src/api/recommendations";
 import Badge from "../../../src/components/Badge";
-import { Recommendation } from "../../../src/types";
+import { Recommendation, RecommendationStatus } from "../../../src/types";
+
+const STATUS_FILTERS: (RecommendationStatus | "All")[] = ["All", "Pending", "Accepted", "Dismissed"];
 
 export default function RecommendationsList() {
   const router = useRouter();
@@ -12,63 +14,84 @@ export default function RecommendationsList() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<RecommendationStatus | "All">("All");
+
+  const load = useCallback(async (showSpinner: boolean) => {
+    if (showSpinner) setLoading(true);
     setError(null);
+    const filters: RecommendationFilters = {};
+    if (statusFilter !== "All") filters.status = statusFilter;
+    if (search.trim()) filters.search = search.trim();
     try {
-      setItems(await getRecommendations());
+      setItems(await getRecommendations(filters));
     } catch {
       setError("Could not load recommendations.");
+    } finally {
+      if (showSpinner) setLoading(false);
     }
-  }, []);
+  }, [search, statusFilter]);
 
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      (async () => {
-        setLoading(true);
-        await load();
-        if (active) setLoading(false);
-      })();
-      return () => { active = false; };
-    }, [load])
-  );
+  // Reload when filters change — debounced so we don't hit the API on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => load(true), 350);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  // Refresh when returning to the screen (after create/delete).
+  useFocusEffect(useCallback(() => { load(false); }, [load]));
 
   async function onRefresh() {
     setRefreshing(true);
-    await load();
+    await load(false);
     setRefreshing(false);
-  }
-
-  if (loading) {
-    return <View style={styles.centered}><ActivityIndicator size="large" /></View>;
   }
 
   return (
     <View style={styles.flex}>
-      <FlatList
-        data={items}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListEmptyComponent={
-          <Text style={styles.empty}>
-            {error ?? "No recommendations yet. Tap + to create one."}
-          </Text>
-        }
-        renderItem={({ item }) => (
-          <Pressable
-            style={styles.card}
-            onPress={() => router.push({ pathname: "/recommendations/[id]", params: { id: item.id } })}
-          >
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
-            <View style={styles.badges}>
-              <Badge label={item.priority} />
-              <Badge label={item.status} />
-            </View>
-          </Pressable>
-        )}
-      />
+      <View style={styles.controls}>
+        <TextInput
+          style={styles.search}
+          placeholder="Search..."
+          placeholderTextColor="#9ca3af"
+          value={search}
+          onChangeText={setSearch}
+          autoCapitalize="none"
+        />
+        <View style={styles.chips}>
+          {STATUS_FILTERS.map((s) => (
+            <Pressable key={s} onPress={() => setStatusFilter(s)} style={[styles.chip, statusFilter === s && styles.chipActive]}>
+              <Text style={[styles.chipText, statusFilter === s && styles.chipTextActive]}>{s}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+
+      {loading ? (
+        <View style={styles.centered}><ActivityIndicator size="large" /></View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListEmptyComponent={<Text style={styles.empty}>{error ?? "No recommendations match your filters."}</Text>}
+          renderItem={({ item }) => (
+            <Pressable
+              style={styles.card}
+              onPress={() => router.push({ pathname: "/recommendations/[id]", params: { id: item.id } })}
+            >
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
+              <View style={styles.badges}>
+                <Badge label={item.priority} />
+                <Badge label={item.status} />
+              </View>
+            </Pressable>
+          )}
+        />
+      )}
+
       <Link href="/recommendations/create" asChild>
         <Pressable style={styles.fab}><Text style={styles.fabText}>+</Text></Pressable>
       </Link>
@@ -79,6 +102,13 @@ export default function RecommendationsList() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  controls: { padding: 16, gap: 12, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: "#e5e7eb" },
+  search: { borderWidth: 1, borderColor: "#d1d5db", borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+  chips: { flexDirection: "row", gap: 8 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: "#d1d5db" },
+  chipActive: { backgroundColor: "#2563eb", borderColor: "#2563eb" },
+  chipText: { fontSize: 13, color: "#374151", fontWeight: "500" },
+  chipTextActive: { color: "#fff" },
   list: { padding: 16, gap: 12 },
   card: { backgroundColor: "#fff", borderRadius: 14, padding: 16, borderWidth: 1, borderColor: "#e5e7eb" },
   cardTitle: { fontSize: 16, fontWeight: "600", marginBottom: 4 },
