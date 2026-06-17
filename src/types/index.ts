@@ -24,3 +24,8 @@ export interface DashboardStats {
   accepted: number;
   dismissed: number;
 }
+
+export interface Paged<T> {
+  items: T[];
+  nextCursor: string | null;
+}

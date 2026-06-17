@@ -1,4 +1,4 @@
-import { DashboardStats, Priority, Recommendation, RecommendationStatus } from "../types";
+import { DashboardStats, Paged, Priority, Recommendation, RecommendationStatus } from "../types";
 import { api } from "./client";
 
 export async function getDashboard(): Promise<DashboardStats> {
@@ -13,10 +13,12 @@ export interface RecommendationFilters {
 }
 
 export async function getRecommendations(
-  filters: RecommendationFilters = {}
-): Promise<Recommendation[]> {
-  // axios omits undefined params, so only the active filters travel.
-  const { data } = await api.get<Recommendation[]>("/recommendations", { params: filters });
+  filters: RecommendationFilters = {},
+  cursor?: string
+): Promise<Paged<Recommendation>> {
+  const { data } = await api.get<Paged<Recommendation>>("/recommendations", {
+    params: { ...filters, cursor },
+  });
   return data;
 }
 

@@ -10,21 +10,30 @@ const STATUS_FILTERS: (RecommendationStatus | "All")[] = ["All", "Pending", "Acc
 export default function RecommendationsList() {
   const router = useRouter();
   const [items, setItems] = useState<Recommendation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);        // first page
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<RecommendationStatus | "All">("All");
 
-  const load = useCallback(async (showSpinner: boolean) => {
+  function buildFilters(): RecommendationFilters {
+    const f: RecommendationFilters = {};
+    if (statusFilter !== "All") f.status = statusFilter;
+    if (search.trim()) f.search = search.trim();
+    return f;
+  }
+
+  // First page: replaces the list. Used on filter change and on focus.
+  const loadFirst = useCallback(async (showSpinner: boolean) => {
     if (showSpinner) setLoading(true);
     setError(null);
-    const filters: RecommendationFilters = {};
-    if (statusFilter !== "All") filters.status = statusFilter;
-    if (search.trim()) filters.search = search.trim();
     try {
-      setItems(await getRecommendations(filters));
+      const page = await getRecommendations(buildFilters());
+      setItems(page.items);
+      setNextCursor(page.nextCursor);
     } catch {
       setError("Could not load recommendations.");
     } finally {
@@ -32,18 +41,33 @@ export default function RecommendationsList() {
     }
   }, [search, statusFilter]);
 
-  // Reload when filters change — debounced so we don't hit the API on every keystroke.
-  useEffect(() => {
-    const timer = setTimeout(() => load(true), 350);
-    return () => clearTimeout(timer);
-  }, [load]);
+  // Next page: appends. Triggered when the user scrolls near the end.
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await getRecommendations(buildFilters(), nextCursor);
+      setItems((prev) => [...prev, ...page.items]);
+      setNextCursor(page.nextCursor);
+    } catch {
+      // keep the items we already have; a transient error shouldn't wipe the list
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
-  // Refresh when returning to the screen (after create/delete).
-  useFocusEffect(useCallback(() => { load(false); }, [load]));
+  // Debounce filter/search changes.
+  useEffect(() => {
+    const t = setTimeout(() => loadFirst(true), 350);
+    return () => clearTimeout(t);
+  }, [loadFirst]);
+
+  // Refresh first page when returning to the screen (after create/delete).
+  useFocusEffect(useCallback(() => { loadFirst(false); }, [loadFirst]));
 
   async function onRefresh() {
     setRefreshing(true);
-    await load(false);
+    await loadFirst(false);
     setRefreshing(false);
   }
 
@@ -75,7 +99,10 @@ export default function RecommendationsList() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
           ListEmptyComponent={<Text style={styles.empty}>{error ?? "No recommendations match your filters."}</Text>}
+          ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: 16 }} /> : null}
           renderItem={({ item }) => (
             <Pressable
               style={styles.card}
