@@ -2,7 +2,7 @@
 
 A React Native (Expo) mobile app for viewing, managing and acting on AI-style business recommendations. Users can register, sign in, browse a personal list of recommendations, filter and search them, view details, and accept, dismiss, create or delete them — all backed by a .NET REST API.
 
-This is the **mobile client**. The backend lives in a separate repository: [RecAI API](#) *(add your backend repo link here)*.
+This is the **mobile client**. The backend lives in a separate repository: [[RecAI API](https://github.com/sebasgpachano/RecAI)](#).
 
 > **Note:** the app requires the backend API to be running to log in and load data. See [Configuration](#configuration).
 
